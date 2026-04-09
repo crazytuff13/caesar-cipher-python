@@ -10,7 +10,7 @@ def caesar(text, shift, encrypt=True):
 
     if not encrypt:
         shift = -shift
-    
+
     shifted_alphabet = alphabet[shift:] + alphabet[:shift]
     translation_table = str.maketrans(alphabet + alphabet.upper(), shifted_alphabet + shifted_alphabet.upper())
     encrypted_text = text.translate(translation_table)
@@ -26,6 +26,31 @@ def decrypt(text, shift):
 
 
 if __name__ == "__main__":
-    encrypted_text = 'Pbhentr vf sbhaq va hayvxryl cynprf.'
-    decrypted_text = decrypt(encrypted_text, 13)
-    print(decrypted_text)
+    print("=== Caesar Cipher Chat ===")
+    print("Type 'quit' to exit.\n")
+
+    while True:
+        message = input("Enter a message: ")
+
+        if message.lower() == 'quit':
+            print("Goodbye!")
+            break
+
+        mode = input("Encrypt or decrypt? (e/d): ").lower()
+
+        shift = input("Enter shift (1-25): ")
+
+        if not shift.isdigit():
+            print("Invalid shift. Try again.\n")
+            continue
+
+        shift = int(shift)
+
+        if mode == 'e':
+            result = encrypt(message, shift)
+            print(f"Encrypted: {result}\n")
+        elif mode == 'd':
+            result = decrypt(message, shift)
+            print(f"Decrypted: {result}\n")
+        else:
+            print("Invalid option. Type 'e' or 'd'.\n")
