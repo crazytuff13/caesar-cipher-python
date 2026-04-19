@@ -288,4 +288,229 @@ function switchTab(tab) {
         if (!messages) return;
         const row = document.createElement('div');
         row.className = 'msg-row system';
-        row.innerHTML = '
+        row.innerHTML = '<div class="msg-bubble system">' + text + '</div>';
+        messages.appendChild(row);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function sendMessage() {
+        const input = document.getElementById('msgInput');
+        const message = input.value.trim();
+        if (!message || !CURRENT_ROOM) return;
+        socket.emit('send_message', {
+            room_id: CURRENT_ROOM,
+            username: USERNAME,
+            message: message,
+            mode: currentMode,
+            cipher: currentCipher,
+            shift: currentShift,
+            keyword: currentKeyword,
+            panic: panic
+        });
+        input.value = '';
+    }
+
+    document.getElementById('msgInput') && document.getElementById('msgInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') sendMessage();
+    });
+
+    function setMode(mode) {
+        currentMode = mode;
+        document.querySelectorAll('.pill-btn').forEach(function(b) { b.classList.remove('active'); });
+        event.target.classList.add('active');
+    }
+
+    function setCipher(cipher) {
+        currentCipher = cipher;
+        document.querySelectorAll('.pill-btn').forEach(function(b) { b.classList.remove('active'); });
+        event.target.classList.add('active');
+        document.getElementById('shiftRow').style.display = cipher === 'caesar' ? 'flex' : 'none';
+        document.getElementById('keywordRow').style.display = cipher === 'vigenere' ? 'flex' : 'none';
+    }
+
+    document.getElementById('shift') && document.getElementById('shift').addEventListener('change', function() {
+        currentShift = parseInt(this.value);
+    });
+
+    document.getElementById('keyword') && document.getElementById('keyword').addEventListener('input', function() {
+        currentKeyword = this.value;
+    });
+
+    setCipher("{{ cipher }}");
+
+    function joinRoom(roomId) {
+        window.location.href = '/?room=' + roomId;
+        closeSidebar();
+    }
+
+    function openNewRoomModal() { document.getElementById('newRoomModal').classList.add('open'); }
+    function closeNewRoomModal() { document.getElementById('newRoomModal').classList.remove('open'); }
+
+    function createRoom() {
+        const name = document.getElementById('newRoomName').value.trim();
+        if (!name) return;
+        fetch('/create_room', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name })
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            if (data.success) window.location.href = '/?room=' + data.room_id;
+            else alert(data.error || 'Could not create channel');
+        });
+    }
+
+    function openSidebar() {
+        document.getElementById('sidebar').classList.add('open');
+        document.getElementById('sidebarOverlay').classList.add('open');
+    }
+
+    function closeSidebar() {
+        document.getElementById('sidebar').classList.remove('open');
+        document.getElementById('sidebarOverlay').classList.remove('open');
+    }
+
+    const messages = document.getElementById('messages');
+    if (messages) messages.scrollTop = messages.scrollHeight;
+</script>
+{% endif %}
+</body>
+</html>'''
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    error = None
+
+    if request.method == 'POST':
+        auth_action = request.form.get('auth_action')
+
+        if auth_action == 'logout':
+            session.clear()
+            return redirect(url_for('index'))
+
+        if auth_action == 'register':
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password', '').strip()
+            if len(username) < 3:
+                error = 'CODENAME MUST BE 3+ CHARACTERS'
+            elif len(password) < 4:
+                error = 'ACCESS CODE MUST BE 4+ CHARACTERS'
+            else:
+                success = create_user(username, password)
+                if success:
+                    user = verify_user(username, password)
+                    session['user_id'] = user['id']
+                    session['username'] = user['username']
+                    return redirect(url_for('index'))
+                else:
+                    error = 'CODENAME ALREADY IN USE'
+
+        elif auth_action == 'login':
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password', '').strip()
+            user = verify_user(username, password)
+            if user:
+                session['user_id'] = user['id']
+                session['username'] = user['username']
+                return redirect(url_for('index'))
+            else:
+                error = 'INVALID CREDENTIALS - ACCESS DENIED'
+
+    if 'user_id' not in session:
+        return render_template_string(HTML, logged_in=False, error=error)
+
+    rooms = get_all_rooms()
+    room_id = request.args.get('room', type=int)
+    current_room = get_room(room_id) if room_id else None
+    messages = get_messages(room_id) if room_id else []
+
+    return render_template_string(HTML,
+        logged_in=True,
+        username=session['username'],
+        rooms=rooms,
+        current_room=current_room,
+        messages=messages,
+        panic=session.get('panic', False),
+        mode=session.get('mode', 'plain'),
+        cipher=session.get('cipher', 'caesar'),
+        shift=session.get('shift', 3),
+        keyword=session.get('keyword', 'KEY')
+    )
+
+@app.route('/create_room', methods=['POST'])
+def create_room_route():
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Not logged in'})
+    data = request.get_json()
+    name = data.get('name', '').strip().upper()
+    if not name:
+        return jsonify({'success': False, 'error': 'Name required'})
+    room_id = create_room(name, session['user_id'])
+    if room_id:
+        return jsonify({'success': True, 'room_id': room_id})
+    return jsonify({'success': False, 'error': 'Channel name already exists'})
+
+@socketio.on('join')
+def on_join(data):
+    room_id = str(data['room_id'])
+    username = data['username']
+    join_room(room_id)
+    emit('user_joined', {'msg': username + ' JOINED THE CHANNEL'}, to=room_id)
+
+@socketio.on('send_message')
+def on_message(data):
+    room_id = data['room_id']
+    username = data['username']
+    message = data['message']
+    mode = data.get('mode', 'plain')
+    cipher = data.get('cipher', 'caesar')
+    shift = int(data.get('shift', 3))
+    keyword = data.get('keyword', 'KEY')
+    panic = data.get('panic', False)
+
+    def run_cipher(text, enc=True):
+        if cipher == 'rot13':
+            return rot13(text)
+        elif cipher == 'vigenere':
+            return vigenere(text, keyword, encrypt=enc)
+        else:
+            return encrypt(text, shift) if enc else decrypt(text, shift)
+
+    is_encrypted = False
+
+    if mode == 'plain':
+        content = message
+    elif mode == 'encrypt':
+        content = 'ENCRYPTED: ' + run_cipher(message)
+        is_encrypted = True
+    elif mode == 'decrypt':
+        content = 'DECRYPTED: ' + run_cipher(message, enc=False)
+    elif mode == 'ai':
+        try:
+            ai_response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=message
+            )
+            content = ai_response.text.strip()
+        except Exception as e:
+            content = 'TRANSMISSION ERROR: ' + str(e)
+    else:
+        content = message
+
+    if panic and mode != 'decrypt':
+        content = run_cipher(content)
+        is_encrypted = True
+
+    from datetime import datetime
+    time_str = datetime.now().strftime('%H:%M')
+
+    save_message(room_id, session.get('user_id', 0), username, content, is_encrypted)
+
+    emit('new_message', {
+        'username': username,
+        'content': content,
+        'time': time_str,
+        'is_encrypted': is_encrypted
+    }, to=str(room_id))
+
+if __name__ == '__main__':
+    socketio.run(app, debug=True)
