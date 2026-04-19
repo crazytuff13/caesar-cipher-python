@@ -20,19 +20,12 @@ HTML = '''<!DOCTYPE html>
 <html>
 <head>
     <title>CLASSIFIED CHANNEL</title>
-<meta http-equiv="refresh" content="5">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <meta http-equiv="refresh" content="5">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        :root {
-            --green: #00ff41;
-            --green-dim: #005f1a;
-            --green-glow: rgba(0,255,65,0.1);
-            --red: #ff0000;
-            --bg: #000;
-        }
+        :root { --green: #00ff41; --green-dim: #005f1a; --green-glow: rgba(0,255,65,0.1); --red: #ff0000; --bg: #000; }
         html, body { height: 100%; background: var(--bg); font-family: 'Share Tech Mono', monospace; color: var(--green); }
         .scanline { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: repeating-linear-gradient(0deg, rgba(0,0,0,0.03) 0px, rgba(0,0,0,0.03) 1px, transparent 1px, transparent 2px); pointer-events: none; z-index: 999; }
         .auth-screen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
@@ -180,7 +173,7 @@ function switchTab(tab) {
                 <button class="menu-btn" onclick="openSidebar()">CHANNELS</button>
                 <div class="room-title"># {{ current_room.name }}</div>
             </div>
-            <div class="online-count" id="onlineCount">CONNECTING...</div>
+            <div class="online-count">LIVE</div>
         </div>
         {% if panic %}
         <div class="panic-banner">SECURITY PROTOCOL ACTIVE - ALL TRANSMISSIONS ENCRYPTED</div>
@@ -217,10 +210,18 @@ function switchTab(tab) {
                     <button class="pill-btn {% if mode == 'ai' %}active{% endif %}" onclick="setMode('ai')">ASK HQ</button>
                 </div>
             </div>
-            <div class="input-row">
-                <input class="msg-input" type="text" id="msgInput" placeholder="ENTER TRANSMISSION..." autocomplete="off">
-                <button class="send-btn" onclick="sendMessage()">SEND</button>
-            </div>
+            <form method="POST" action="/send_message">
+                <input type="hidden" name="room_id" value="{{ current_room.id }}">
+                <input type="hidden" name="mode" id="modeInput" value="{{ mode }}">
+                <input type="hidden" name="cipher" id="cipherInput" value="{{ cipher }}">
+                <input type="hidden" name="shift" id="shiftInput" value="{{ shift }}">
+                <input type="hidden" name="keyword" id="keywordInput" value="{{ keyword }}">
+                <input type="hidden" name="panic" value="{{ 'true' if panic else 'false' }}">
+                <div class="input-row">
+                    <input class="msg-input" type="text" name="message" id="msgInput" placeholder="ENTER TRANSMISSION..." autocomplete="off">
+                    <button class="send-btn" type="submit">SEND</button>
+                </div>
+            </form>
         </div>
         {% else %}
         <button class="menu-btn" style="display:block;margin:12px;" onclick="openSidebar()">CHANNELS</button>
@@ -236,93 +237,30 @@ function switchTab(tab) {
 <div class="modal-overlay" id="newRoomModal">
     <div class="modal">
         <div class="modal-title">[ NEW CHANNEL ]</div>
-        <input type="text" id="newRoomName" placeholder="CHANNEL CODENAME" autocomplete="off" maxlength="30">
-        <div class="modal-btns">
-            <button class="modal-cancel" onclick="closeNewRoomModal()">CANCEL</button>
-            <button class="modal-confirm" onclick="createRoom()">CREATE</button>
-        </div>
+        <form method="POST" action="/create_room_form">
+            <input type="text" name="name" id="newRoomName" placeholder="CHANNEL CODENAME" autocomplete="off" maxlength="30">
+            <div class="modal-btns" style="margin-top:14px;">
+                <button class="modal-cancel" type="button" onclick="closeNewRoomModal()">CANCEL</button>
+                <button class="modal-confirm" type="submit">CREATE</button>
+            </div>
+        </form>
     </div>
 </div>
 
 <script>
-    const socket = io();
-    const USERNAME = "{{ username }}";
-    const CURRENT_ROOM = {{ current_room.id if current_room else 'null' }};
     let currentMode = "{{ mode }}";
     let currentCipher = "{{ cipher }}";
-    let currentShift = {{ shift }};
-    let currentKeyword = "{{ keyword }}";
-    let panic = {{ 'true' if panic else 'false' }};
-
-    if (CURRENT_ROOM) {
-        socket.emit('join', { room_id: CURRENT_ROOM, username: USERNAME });
-    }
-
-    socket.on('connect', () => {
-        if (CURRENT_ROOM) document.getElementById('onlineCount').textContent = 'CONNECTED';
-    });
-
-    socket.on('user_joined', (data) => { appendSystemMsg(data.msg); });
-    socket.on('user_left', (data) => { appendSystemMsg(data.msg); });
-    socket.on('new_message', (data) => { appendMessage(data); });
-    socket.on('online_count', (data) => {
-        document.getElementById('onlineCount').textContent = data.count + ' ONLINE';
-    });
-
-    function appendMessage(data) {
-        const messages = document.getElementById('messages');
-        if (!messages) return;
-        const isMe = data.username === USERNAME;
-        const isSystem = data.username === 'SYSTEM';
-        const row = document.createElement('div');
-        row.className = 'msg-row ' + (isMe ? 'mine' : isSystem ? 'system' : 'theirs');
-        let html = '';
-        if (!isSystem) html += '<div class="msg-meta">' + data.username + ' - ' + data.time + '</div>';
-        html += '<div class="msg-bubble ' + (isMe ? 'mine' : isSystem ? 'system' : 'theirs') + (data.is_encrypted ? ' encrypted' : '') + '">' + data.content + '</div>';
-        row.innerHTML = html;
-        messages.appendChild(row);
-        messages.scrollTop = messages.scrollHeight;
-    }
-
-    function appendSystemMsg(text) {
-        const messages = document.getElementById('messages');
-        if (!messages) return;
-        const row = document.createElement('div');
-        row.className = 'msg-row system';
-        row.innerHTML = '<div class="msg-bubble system">' + text + '</div>';
-        messages.appendChild(row);
-        messages.scrollTop = messages.scrollHeight;
-    }
-
-    function sendMessage() {
-        const input = document.getElementById('msgInput');
-        const message = input.value.trim();
-        if (!message || !CURRENT_ROOM) return;
-        socket.emit('send_message', {
-            room_id: CURRENT_ROOM,
-            username: USERNAME,
-            message: message,
-            mode: currentMode,
-            cipher: currentCipher,
-            shift: currentShift,
-            keyword: currentKeyword,
-            panic: panic
-        });
-        input.value = '';
-    }
-
-    document.getElementById('msgInput') && document.getElementById('msgInput').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') sendMessage();
-    });
 
     function setMode(mode) {
         currentMode = mode;
+        document.getElementById('modeInput').value = mode;
         document.querySelectorAll('.pill-btn').forEach(function(b) { b.classList.remove('active'); });
         event.target.classList.add('active');
     }
 
     function setCipher(cipher) {
         currentCipher = cipher;
+        document.getElementById('cipherInput').value = cipher;
         document.querySelectorAll('.pill-btn').forEach(function(b) { b.classList.remove('active'); });
         event.target.classList.add('active');
         document.getElementById('shiftRow').style.display = cipher === 'caesar' ? 'flex' : 'none';
@@ -330,11 +268,11 @@ function switchTab(tab) {
     }
 
     document.getElementById('shift') && document.getElementById('shift').addEventListener('change', function() {
-        currentShift = parseInt(this.value);
+        document.getElementById('shiftInput').value = this.value;
     });
 
     document.getElementById('keyword') && document.getElementById('keyword').addEventListener('input', function() {
-        currentKeyword = this.value;
+        document.getElementById('keywordInput').value = this.value;
     });
 
     setCipher("{{ cipher }}");
@@ -342,176 +280,4 @@ function switchTab(tab) {
     function joinRoom(roomId) {
         window.location.href = '/?room=' + roomId;
         closeSidebar();
-    }
-
-    function openNewRoomModal() { document.getElementById('newRoomModal').classList.add('open'); }
-    function closeNewRoomModal() { document.getElementById('newRoomModal').classList.remove('open'); }
-
-    function createRoom() {
-        const name = document.getElementById('newRoomName').value.trim();
-        if (!name) return;
-        fetch('/create_room', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: name })
-        }).then(function(r) { return r.json(); }).then(function(data) {
-            if (data.success) window.location.href = '/?room=' + data.room_id;
-            else alert(data.error || 'Could not create channel');
-        });
-    }
-
-    function openSidebar() {
-        document.getElementById('sidebar').classList.add('open');
-        document.getElementById('sidebarOverlay').classList.add('open');
-    }
-
-    function closeSidebar() {
-        document.getElementById('sidebar').classList.remove('open');
-        document.getElementById('sidebarOverlay').classList.remove('open');
-    }
-
-    const messages = document.getElementById('messages');
-    if (messages) messages.scrollTop = messages.scrollHeight;
-</script>
-{% endif %}
-</body>
-</html>'''
-
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    error = None
-
-    if request.method == 'POST':
-        auth_action = request.form.get('auth_action')
-
-        if auth_action == 'logout':
-            session.clear()
-            return redirect(url_for('index'))
-
-        if auth_action == 'register':
-            username = request.form.get('username', '').strip()
-            password = request.form.get('password', '').strip()
-            if len(username) < 3:
-                error = 'CODENAME MUST BE 3+ CHARACTERS'
-            elif len(password) < 4:
-                error = 'ACCESS CODE MUST BE 4+ CHARACTERS'
-            else:
-                success = create_user(username, password)
-                if success:
-                    user = verify_user(username, password)
-                    session['user_id'] = user['id']
-                    session['username'] = user['username']
-                    return redirect(url_for('index'))
-                else:
-                    error = 'CODENAME ALREADY IN USE'
-
-        elif auth_action == 'login':
-            username = request.form.get('username', '').strip()
-            password = request.form.get('password', '').strip()
-            user = verify_user(username, password)
-            if user:
-                session['user_id'] = user['id']
-                session['username'] = user['username']
-                return redirect(url_for('index'))
-            else:
-                error = 'INVALID CREDENTIALS - ACCESS DENIED'
-
-    if 'user_id' not in session:
-        return render_template_string(HTML, logged_in=False, error=error)
-
-    rooms = get_all_rooms()
-    room_id = request.args.get('room', type=int)
-    current_room = get_room(room_id) if room_id else None
-    messages = get_messages(room_id) if room_id else []
-
-    return render_template_string(HTML,
-        logged_in=True,
-        username=session['username'],
-        rooms=rooms,
-        current_room=current_room,
-        messages=messages,
-        panic=session.get('panic', False),
-        mode=session.get('mode', 'plain'),
-        cipher=session.get('cipher', 'caesar'),
-        shift=session.get('shift', 3),
-        keyword=session.get('keyword', 'KEY')
-    )
-
-@app.route('/create_room', methods=['POST'])
-def create_room_route():
-    if 'user_id' not in session:
-        return jsonify({'success': False, 'error': 'Not logged in'})
-    data = request.get_json()
-    name = data.get('name', '').strip().upper()
-    if not name:
-        return jsonify({'success': False, 'error': 'Name required'})
-    room_id = create_room(name, session['user_id'])
-    if room_id:
-        return jsonify({'success': True, 'room_id': room_id})
-    return jsonify({'success': False, 'error': 'Channel name already exists'})
-
-@socketio.on('join')
-def on_join(data):
-    room_id = str(data['room_id'])
-    username = data['username']
-    join_room(room_id)
-    emit('user_joined', {'msg': username + ' JOINED THE CHANNEL'}, to=room_id)
-
-@socketio.on('send_message')
-def on_message(data):
-    room_id = data['room_id']
-    username = data['username']
-    message = data['message']
-    mode = data.get('mode', 'plain')
-    cipher = data.get('cipher', 'caesar')
-    shift = int(data.get('shift', 3))
-    keyword = data.get('keyword', 'KEY')
-    panic = data.get('panic', False)
-
-    def run_cipher(text, enc=True):
-        if cipher == 'rot13':
-            return rot13(text)
-        elif cipher == 'vigenere':
-            return vigenere(text, keyword, encrypt=enc)
-        else:
-            return encrypt(text, shift) if enc else decrypt(text, shift)
-
-    is_encrypted = False
-
-    if mode == 'plain':
-        content = message
-    elif mode == 'encrypt':
-        content = 'ENCRYPTED: ' + run_cipher(message)
-        is_encrypted = True
-    elif mode == 'decrypt':
-        content = 'DECRYPTED: ' + run_cipher(message, enc=False)
-    elif mode == 'ai':
-        try:
-            ai_response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=message
-            )
-            content = ai_response.text.strip()
-        except Exception as e:
-            content = 'TRANSMISSION ERROR: ' + str(e)
-    else:
-        content = message
-
-    if panic and mode != 'decrypt':
-        content = run_cipher(content)
-        is_encrypted = True
-
-    from datetime import datetime
-    time_str = datetime.now().strftime('%H:%M')
-
-    save_message(room_id, session.get('user_id', 0), username, content, is_encrypted)
-
-    emit('new_message', {
-        'username': username,
-        'content': content,
-        'time': time_str,
-        'is_encrypted': is_encrypted
-    }, to=str(room_id))
-
-if __name__ == '__main__':
-    socketio.run(app, debug=True)
+ 
