@@ -1,4 +1,7 @@
 flask
-gunicorn
+flask-socketio
 google-genai
 python-dotenv
+bcrypt
+gunicorn
+eventlet
