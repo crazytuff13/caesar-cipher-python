@@ -58,7 +58,8 @@ HTML = '''<!DOCTYPE html>
         .chat-header-left { display: flex; align-items: center; gap: 10px; }
         .menu-btn { display: none; background: transparent; border: 1px solid var(--green); color: var(--green); font-family: 'Share Tech Mono', monospace; padding: 6px 10px; cursor: pointer; font-size: 1rem; }
         .room-title { font-size: 1rem; letter-spacing: 3px; text-shadow: 0 0 8px var(--green); }
-        .online-count { font-size: 0.7rem; color: var(--green-dim); letter-spacing: 2px; }
+        .refresh-btn { font-size: 0.75rem; color: var(--green); letter-spacing: 2px; cursor: pointer; border: 1px solid var(--green-dim); padding: 6px 12px; background: transparent; font-family: 'Share Tech Mono', monospace; }
+        .refresh-btn:hover { border-color: var(--green); background: var(--green-glow); }
         .panic-banner { text-align: center; color: var(--red); font-size: 0.8rem; letter-spacing: 2px; padding: 6px; border-bottom: 1px solid var(--red); animation: blink 1s infinite; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         .messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
@@ -172,7 +173,7 @@ function switchTab(tab) {
                 <button class="menu-btn" onclick="openSidebar()">CHANNELS</button>
                 <div class="room-title"># {{ current_room.name }}</div>
             </div>
-            <div class="online-count">LIVE</div>
+            <button class="refresh-btn" onclick="location.reload()">⟳ REFRESH</button>
         </div>
         {% if panic %}
         <div class="panic-banner">SECURITY PROTOCOL ACTIVE - ALL TRANSMISSIONS ENCRYPTED</div>
@@ -291,12 +292,6 @@ function switchTab(tab) {
         document.getElementById('sidebar').classList.remove('open');
         document.getElementById('sidebarOverlay').classList.remove('open');
     }
-
-    let refreshTimer = setTimeout(function() { location.reload(); }, 5000);
-    document.getElementById('msgInput') && document.getElementById('msgInput').addEventListener('input', function() {
-        clearTimeout(refreshTimer);
-        if (this.value === '') refreshTimer = setTimeout(function() { location.reload(); }, 5000);
-    });
 
     const messages = document.getElementById('messages');
     if (messages) messages.scrollTop = messages.scrollHeight;
