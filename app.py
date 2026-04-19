@@ -280,4 +280,163 @@ function switchTab(tab) {
     function joinRoom(roomId) {
         window.location.href = '/?room=' + roomId;
         closeSidebar();
+}
+
+    function openNewRoomModal() { document.getElementById('newRoomModal').classList.add('open'); }
+    function closeNewRoomModal() { document.getElementById('newRoomModal').classList.remove('open'); }
+    function openSidebar() {
+        document.getElementById('sidebar').classList.add('open');
+        document.getElementById('sidebarOverlay').classList.add('open');
+    }
+    function closeSidebar() {
+        document.getElementById('sidebar').classList.remove('open');
+        document.getElementById('sidebarOverlay').classList.remove('open');
+    }
+
+    const messages = document.getElementById('messages');
+    if (messages) messages.scrollTop = messages.scrollHeight;
+</script>
+{% endif %}
+</body>
+</html>'''
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    error = None
+
+    if request.method == 'POST':
+        auth_action = request.form.get('auth_action')
+
+        if auth_action == 'logout':
+            session.clear()
+            return redirect(url_for('index'))
+
+        if auth_action == 'register':
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password', '').strip()
+            if len(username) < 3:
+                error = 'CODENAME MUST BE 3+ CHARACTERS'
+            elif len(password) < 4:
+                error = 'ACCESS CODE MUST BE 4+ CHARACTERS'
+            else:
+                success = create_user(username, password)
+                if success:
+                    user = verify_user(username, password)
+                    session['user_id'] = user['id']
+                    session['username'] = user['username']
+                    return redirect(url_for('index'))
+                else:
+                    error = 'CODENAME ALREADY IN USE'
+
+        elif auth_action == 'login':
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password', '').strip()
+            user = verify_user(username, password)
+            if user:
+                session['user_id'] = user['id']
+                session['username'] = user['username']
+                return redirect(url_for('index'))
+            else:
+                error = 'INVALID CREDENTIALS - ACCESS DENIED'
+
+    if 'user_id' not in session:
+        return render_template_string(HTML, logged_in=False, error=error)
+
+    rooms = get_all_rooms()
+    room_id = request.args.get('room', type=int)
+    current_room = get_room(room_id) if room_id else None
+    messages = get_messages(room_id) if room_id else []
+
+    return render_template_string(HTML,
+        logged_in=True,
+        username=session['username'],
+        rooms=rooms,
+        current_room=current_room,
+        messages=messages,
+        panic=session.get('panic', False),
+        mode=session.get('mode', 'plain'),
+        cipher=session.get('cipher', 'caesar'),
+        shift=session.get('shift', 3),
+        keyword=session.get('keyword', 'KEY')
+    )
+
+@app.route('/create_room_form', methods=['POST'])
+def create_room_form():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    name = request.form.get('name', '').strip().upper()
+    if not name:
+        return redirect(url_for('index'))
+    room_id = create_room(name, session['user_id'])
+    if room_id:
+        return redirect('/?room=' + str(room_id))
+    return redirect(url_for('index'))
+
+@app.route('/send_message', methods=['POST'])
+def send_message_route():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+
+    room_id = request.form.get('room_id', type=int)
+    message = request.form.get('message', '').strip()
+    mode = request.form.get('mode', 'plain')
+    cipher = request.form.get('cipher', 'caesar')
+    shift = int(request.form.get('shift', 3))
+    keyword = request.form.get('keyword', 'KEY').strip() or 'KEY'
+    panic = request.form.get('panic') == 'true'
+
+    session['mode'] = mode
+    session['cipher'] = cipher
+    session['shift'] = shift
+    session['keyword'] = keyword
+
+    if not message or not room_id:
+        return redirect('/?room=' + str(room_id))
+
+    def run_cipher(text, enc=True):
+        if cipher == 'rot13':
+            return rot13(text)
+        elif cipher == 'vigenere':
+            return vigenere(text, keyword, encrypt=enc)
+        else:
+            return encrypt(text, shift) if enc else decrypt(text, shift)
+
+    is_encrypted = False
+
+    if mode == 'plain':
+        content = message
+    elif mode == 'encrypt':
+        content = 'ENCRYPTED: ' + run_cipher(message)
+        is_encrypted = True
+    elif mode == 'decrypt':
+        content = 'DECRYPTED: ' + run_cipher(message, enc=False)
+    elif mode == 'ai':
+        try:
+            ai_response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=message
+            )
+            content = ai_response.text.strip()
+        except Exception as e:
+            content = 'TRANSMISSION ERROR: ' + str(e)
+    else:
+        content = message
+
+    if panic and mode != 'decrypt':
+        content = run_cipher(content)
+        is_encrypted = True
+
+    save_message(room_id, session['user_id'], session['username'], content, is_encrypted)
+
+    return redirect('/?room=' + str(room_id))
+
+@socketio.on('join')
+def on_join(data):
+    room_id = str(data['room_id'])
+    username = data['username']
+    join_room(room_id)
+    emit('user_joined', {'msg': username + ' JOINED THE CHANNEL'}, to=room_id)
+
+if __name__ == '__main__':
+    socketio.run(app, debug=True)
  
