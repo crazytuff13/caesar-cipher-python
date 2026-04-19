@@ -19,8 +19,7 @@ init_db()
 HTML = '''<!DOCTYPE html>
 <html>
 <head>
-    <title>CLASSIFIED CHANNEL</title>
-    <meta http-equiv="refresh" content="5">
+    <title>CLASSIFIED CHANNEL</title
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
