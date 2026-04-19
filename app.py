@@ -428,14 +428,14 @@ def send_message_route():
     else:
         content = message
 
-    if panic and mode != 'decrypt':
+if panic and mode != 'decrypt':
         content = run_cipher(content)
         is_encrypted = True
 
 sender = 'HQ' if mode == 'ai' else session['username']
 save_message(room_id, session['user_id'], sender, content, is_encrypted)
 
-    return redirect('/?room=' + str(room_id))
+return redirect('/?room=' + str(room_id))
 
 @socketio.on('join')
 def on_join(data):
