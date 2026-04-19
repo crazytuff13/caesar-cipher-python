@@ -22,16 +22,18 @@ HTML = '''
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
+        html, body {
+            height: 100%;
+            background: #000;
+        }
+
         body {
             font-family: 'Share Tech Mono', monospace;
-            background: #000;
             color: #00ff41;
-            height: 100dvh;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            overflow: hidden;
+            min-height: 100%;
         }
 
         .scanline {
@@ -52,12 +54,13 @@ HTML = '''
         .container {
             width: 100%;
             max-width: 700px;
-            height: 100dvh;
             display: flex;
             flex-direction: column;
-            border: 1px solid #00ff41;
+            border-left: 1px solid #00ff41;
+            border-right: 1px solid #00ff41;
             box-shadow: 0 0 20px #00ff41, inset 0 0 20px rgba(0,255,65,0.05);
             padding: 12px;
+            flex: 1;
         }
 
         .header {
@@ -100,9 +103,10 @@ HTML = '''
             color: #00ff41;
             font-family: 'Share Tech Mono', monospace;
             padding: 10px;
-            width: 200px;
+            width: 100%;
             text-align: center;
             font-size: 1rem;
+            margin-bottom: 10px;
         }
 
         .panic-setup button {
@@ -113,12 +117,8 @@ HTML = '''
             font-family: 'Share Tech Mono', monospace;
             font-weight: bold;
             cursor: pointer;
-            margin-top: 10px;
             font-size: 1rem;
-            display: block;
             width: 100%;
-            max-width: 216px;
-            margin: 10px auto 0;
         }
 
         .chat-history {
@@ -128,6 +128,7 @@ HTML = '''
             display: flex;
             flex-direction: column;
             gap: 10px;
+            min-height: 200px;
         }
 
         .chat-history::-webkit-scrollbar { width: 4px; }
@@ -198,13 +199,14 @@ HTML = '''
             display: flex;
             flex-direction: column;
             gap: 10px;
+            padding-bottom: 16px;
         }
 
         .section-label {
             font-size: 0.7rem;
             color: #005f1a;
             letter-spacing: 3px;
-            margin-bottom: 2px;
+            margin-bottom: 4px;
         }
 
         .cipher-row {
@@ -214,9 +216,9 @@ HTML = '''
 
         .cipher-btn {
             flex: 1;
-            padding: 10px 4px;
+            padding: 12px 4px;
             font-family: 'Share Tech Mono', monospace;
-            font-size: 0.8rem;
+            font-size: 0.85rem;
             letter-spacing: 1px;
             cursor: pointer;
             border: 1px solid #005f1a;
@@ -257,7 +259,7 @@ HTML = '''
             color: #00ff41;
             font-family: 'Share Tech Mono', monospace;
             padding: 8px;
-            width: 130px;
+            width: 140px;
             text-align: center;
             font-size: 1rem;
         }
@@ -265,11 +267,13 @@ HTML = '''
         .toggle-row {
             display: flex;
             gap: 6px;
+            flex-wrap: wrap;
         }
 
         .toggle-btn {
             flex: 1;
-            padding: 10px 4px;
+            min-width: 70px;
+            padding: 12px 4px;
             font-family: 'Share Tech Mono', monospace;
             font-size: 0.8rem;
             letter-spacing: 1px;
@@ -297,9 +301,11 @@ HTML = '''
             border: 1px solid #00ff41;
             color: #00ff41;
             font-family: 'Share Tech Mono', monospace;
-            padding: 12px 10px;
+            padding: 14px 10px;
             font-size: 1rem;
             outline: none;
+            -webkit-appearance: none;
+            border-radius: 0;
         }
 
         .input-row input::placeholder { color: #005f1a; }
@@ -308,15 +314,17 @@ HTML = '''
             background: #00ff41;
             color: #000;
             border: none;
-            padding: 12px 16px;
+            padding: 14px 16px;
             font-family: 'Share Tech Mono', monospace;
             font-weight: bold;
             letter-spacing: 1px;
             cursor: pointer;
             font-size: 0.9rem;
+            -webkit-appearance: none;
+            border-radius: 0;
         }
 
-        .transmit-btn:hover { background: #00cc33; }
+        .transmit-btn:active { background: #00cc33; }
     </style>
 </head>
 <body>
@@ -351,7 +359,6 @@ HTML = '''
     </div>
 
     <div class="controls">
-
         <div>
             <div class="section-label">— CIPHER TYPE —</div>
             <div class="cipher-row">
@@ -397,18 +404,13 @@ HTML = '''
 </div>
 
 <script>
-    let currentMode = "{{ mode }}";
-    let currentCipher = "{{ cipher }}";
-
     function setMode(mode) {
-        currentMode = mode;
         document.getElementById('modeInput').value = mode;
         document.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
         event.target.classList.add('active');
     }
 
     function setCipher(cipher) {
-        currentCipher = cipher;
         document.getElementById('cipherInput').value = cipher;
         document.querySelectorAll('.cipher-btn').forEach(btn => btn.classList.remove('active'));
         event.target.classList.add('active');
@@ -495,7 +497,6 @@ def index():
                 session.modified = True
                 return render_template_string(HTML, **session)
 
-            # Helper: run the selected cipher
             def run_cipher(text, enc=True):
                 if cipher == 'rot13':
                     return rot13(text)
@@ -506,16 +507,13 @@ def index():
 
             history = session['history']
 
-            # What the agent bubble shows
-            if session['panic']:
-                display_msg = run_cipher(message)
-            else:
-                display_msg = message
+            # Agent bubble — encrypt display if panic active
+            display_msg = run_cipher(message) if session['panic'] else message
             history.append({'sender': 'agent', 'text': display_msg})
 
-            # Build HQ response based on mode
+            # HQ response
             if mode == 'plain':
-                response_text = message  # echo back plain for now, replace with logic if needed
+                response_text = message
 
             elif mode == 'encrypt':
                 result = run_cipher(message)
@@ -535,7 +533,7 @@ def index():
                 except Exception as e:
                     response_text = f'TRANSMISSION ERROR: {str(e)}'
 
-            # If panic is active, encrypt the HQ response too
+            # Encrypt HQ response if panic active
             if session['panic']:
                 response_text = run_cipher(response_text)
 
