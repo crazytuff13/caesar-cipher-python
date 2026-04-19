@@ -293,7 +293,14 @@ function switchTab(tab) {
     }
 
     const messages = document.getElementById('messages');
-    if (messages) messages.scrollTop = messages.scrollHeight;
+if (messages) messages.scrollTop = messages.scrollHeight;
+
+let refreshTimer = setTimeout(function() { location.reload(); }, 5000);
+
+document.getElementById('msgInput') && document.getElementById('msgInput').addEventListener('input', function() {
+    clearTimeout(refreshTimer);
+    if (this.value === '') refreshTimer = setTimeout(function() { location.reload(); }, 5000);
+});
 </script>
 {% endif %}
 </body>
