@@ -77,15 +77,11 @@ HTML = '''<!DOCTYPE html>
         .msg-bubble.encrypted { color: var(--red) !important; border-color: var(--red) !important; text-shadow: 0 0 6px var(--red); }
         .no-room { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--green-dim); gap: 16px; font-size: 0.9rem; letter-spacing: 3px; }
         .no-room-icon { font-size: 3rem; opacity: 0.3; }
-        .controls { border-top: 1px solid var(--green); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
-        .section-label { font-size: 0.65rem; color: var(--green-dim); letter-spacing: 3px; }
-        .btn-row { display: flex; gap: 6px; flex-wrap: wrap; }
-        .pill-btn { flex: 1; min-width: 60px; padding: 10px 4px; font-family: 'Share Tech Mono', monospace; font-size: 0.75rem; letter-spacing: 1px; cursor: pointer; border: 1px solid var(--green-dim); background: var(--bg); color: var(--green-dim); -webkit-appearance: none; border-radius: 0; }
-        .pill-btn.active { border-color: var(--green); color: var(--green); background: var(--green-glow); text-shadow: 0 0 6px var(--green); }
-        .param-row { display: flex; align-items: center; gap: 10px; font-size: 0.8rem; color: var(--green-dim); letter-spacing: 2px; }
-        .param-row input { background: var(--bg); border: 1px solid var(--green); color: var(--green); font-family: 'Share Tech Mono', monospace; padding: 6px 8px; font-size: 0.95rem; outline: none; -webkit-appearance: none; border-radius: 0; }
-        .param-row input[type="number"] { width: 65px; text-align: center; }
-        .param-row input[type="text"] { width: 120px; text-align: center; }
+        .controls { border-top: 1px solid var(--green); padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+        .control-row { display: flex; gap: 8px; }
+        .ctrl-btn { flex: 1; padding: 12px 4px; font-family: 'Share Tech Mono', monospace; font-size: 0.8rem; letter-spacing: 1px; cursor: pointer; border: 1px solid var(--green-dim); background: var(--bg); color: var(--green-dim); -webkit-appearance: none; border-radius: 0; }
+        .ctrl-btn.active { border-color: var(--green); color: var(--green); background: var(--green-glow); text-shadow: 0 0 6px var(--green); }
+        .ctrl-btn.locked { border-color: var(--red); color: var(--red); background: rgba(255,0,0,0.1); text-shadow: 0 0 6px var(--red); }
         .input-row { display: flex; gap: 8px; }
         .msg-input { flex: 1; background: var(--bg); border: 1px solid var(--green); color: var(--green); font-family: 'Share Tech Mono', monospace; padding: 12px 10px; font-size: 1rem; outline: none; -webkit-appearance: none; border-radius: 0; }
         .msg-input::placeholder { color: var(--green-dim); }
@@ -100,6 +96,12 @@ HTML = '''<!DOCTYPE html>
         .modal-btns { display: flex; gap: 8px; }
         .modal-confirm { flex: 1; background: var(--green); color: var(--bg); border: none; padding: 12px; font-family: 'Share Tech Mono', monospace; font-weight: bold; font-size: 0.9rem; cursor: pointer; }
         .modal-cancel { flex: 1; background: transparent; color: var(--green-dim); border: 1px solid var(--green-dim); padding: 12px; font-family: 'Share Tech Mono', monospace; font-size: 0.9rem; cursor: pointer; }
+        .cipher-options { display: flex; flex-direction: column; gap: 8px; }
+        .cipher-option { padding: 14px; font-family: 'Share Tech Mono', monospace; font-size: 0.9rem; letter-spacing: 2px; cursor: pointer; border: 1px solid var(--green-dim); background: var(--bg); color: var(--green-dim); text-align: center; }
+        .cipher-option:hover { border-color: var(--green); color: var(--green); background: var(--green-glow); }
+        .cipher-option.active { border-color: var(--green); color: var(--green); background: var(--green-glow); text-shadow: 0 0 6px var(--green); }
+        .keyword-input { background: var(--bg); border: 1px solid var(--green); color: var(--green); font-family: 'Share Tech Mono', monospace; padding: 10px; font-size: 1rem; width: 100%; outline: none; -webkit-appearance: none; border-radius: 0; margin-top: 4px; }
+        .keyword-input::placeholder { color: var(--green-dim); }
         @media (max-width: 600px) {
             .sidebar { position: fixed; top: 0; left: 0; height: 100%; z-index: 200; transform: translateX(-100%); }
             .sidebar.open { transform: translateX(0); }
@@ -175,8 +177,8 @@ function switchTab(tab) {
             </div>
             <button class="refresh-btn" onclick="location.reload()">⟳ REFRESH</button>
         </div>
-        {% if panic %}
-        <div class="panic-banner">SECURITY PROTOCOL ACTIVE - ALL TRANSMISSIONS ENCRYPTED</div>
+        {% if encrypted_mode %}
+        <div class="panic-banner">🔒 ENCRYPTED MODE ACTIVE</div>
         {% endif %}
         <div class="messages" id="messages">
             {% for msg in messages %}
@@ -187,36 +189,18 @@ function switchTab(tab) {
             {% endfor %}
         </div>
         <div class="controls">
-            <div>
-                <div class="section-label">--- CIPHER TYPE ---</div>
-                <div class="btn-row">
-                    <button class="pill-btn {% if cipher == 'caesar' %}active{% endif %}" onclick="setCipher('caesar')">CAESAR</button>
-                    <button class="pill-btn {% if cipher == 'rot13' %}active{% endif %}" onclick="setCipher('rot13')">ROT13</button>
-                    <button class="pill-btn {% if cipher == 'vigenere' %}active{% endif %}" onclick="setCipher('vigenere')">VIGENERE</button>
-                </div>
+            <div class="control-row">
+                <button class="ctrl-btn active" id="cipherBtn" onclick="openCipherModal()">🔐 {{ cipher|upper }}</button>
+                <button class="ctrl-btn {% if encrypted_mode %}locked{% endif %}" id="lockBtn" onclick="toggleLock()">{% if encrypted_mode %}🔒 ENCRYPTED{% else %}🔓 PLAIN{% endif %}</button>
+                <button class="ctrl-btn {% if mode == 'ai' %}active{% endif %}" id="aiBtn" onclick="toggleAI()">🤖 ASK HQ</button>
             </div>
-            <div id="shiftRow" class="param-row">
-                SHIFT: <input type="number" id="shift" min="1" max="25" value="{{ shift }}">
-            </div>
-            <div id="keywordRow" class="param-row" style="display:none;">
-                KEYWORD: <input type="text" id="keyword" maxlength="20" placeholder="ENTER KEY" value="{{ keyword }}">
-            </div>
-            <div>
-                <div class="section-label">--- MODE ---</div>
-                <div class="btn-row">
-                    <button class="pill-btn {% if mode == 'plain' %}active{% endif %}" onclick="setMode('plain')">PLAIN</button>
-                    <button class="pill-btn {% if mode == 'encrypt' %}active{% endif %}" onclick="setMode('encrypt')">ENCRYPT</button>
-                    <button class="pill-btn {% if mode == 'decrypt' %}active{% endif %}" onclick="setMode('decrypt')">DECRYPT</button>
-                    <button class="pill-btn {% if mode == 'ai' %}active{% endif %}" onclick="setMode('ai')">ASK HQ</button>
-                </div>
-            </div>
-            <form method="POST" action="/send_message">
+            <form method="POST" action="/send_message" id="msgForm">
                 <input type="hidden" name="room_id" value="{{ current_room.id }}">
                 <input type="hidden" name="mode" id="modeInput" value="{{ mode }}">
                 <input type="hidden" name="cipher" id="cipherInput" value="{{ cipher }}">
                 <input type="hidden" name="shift" id="shiftInput" value="{{ shift }}">
                 <input type="hidden" name="keyword" id="keywordInput" value="{{ keyword }}">
-                <input type="hidden" name="panic" value="{{ 'true' if panic else 'false' }}">
+                <input type="hidden" name="encrypted_mode" id="encryptedModeInput" value="{{ 'true' if encrypted_mode else 'false' }}">
                 <div class="input-row">
                     <input class="msg-input" type="text" name="message" id="msgInput" placeholder="ENTER TRANSMISSION..." autocomplete="off">
                     <button class="send-btn" type="submit">SEND</button>
@@ -234,6 +218,7 @@ function switchTab(tab) {
     </div>
 </div>
 
+<!-- NEW ROOM MODAL -->
 <div class="modal-overlay" id="newRoomModal">
     <div class="modal">
         <div class="modal-title">[ NEW CHANNEL ]</div>
@@ -247,35 +232,77 @@ function switchTab(tab) {
     </div>
 </div>
 
+<!-- CIPHER MODAL -->
+<div class="modal-overlay" id="cipherModal">
+    <div class="modal">
+        <div class="modal-title">[ SELECT CIPHER ]</div>
+        <div class="cipher-options">
+            <button class="cipher-option {% if cipher == 'caesar' %}active{% endif %}" onclick="selectCipher('caesar')">CAESAR — NUMBER SHIFT</button>
+            <button class="cipher-option {% if cipher == 'rot13' %}active{% endif %}" onclick="selectCipher('rot13')">ROT13 — FIXED SHIFT 13</button>
+            <button class="cipher-option {% if cipher == 'vigenere' %}active{% endif %}" onclick="selectCipher('vigenere')">VIGENERE — KEYWORD</button>
+        </div>
+        <div id="shiftSection" style="display:{% if cipher == 'caesar' %}block{% else %}none{% endif %};">
+            <div style="font-size:0.75rem;color:var(--green-dim);letter-spacing:2px;margin-bottom:6px;">SHIFT (1-25):</div>
+            <input class="keyword-input" type="number" id="shiftPicker" min="1" max="25" value="{{ shift }}">
+        </div>
+        <div id="keywordSection" style="display:{% if cipher == 'vigenere' %}block{% else %}none{% endif %};">
+            <div style="font-size:0.75rem;color:var(--green-dim);letter-spacing:2px;margin-bottom:6px;">KEYWORD:</div>
+            <input class="keyword-input" type="text" id="keywordPicker" maxlength="20" placeholder="ENTER KEYWORD" value="{{ keyword }}">
+        </div>
+        <button class="modal-confirm" onclick="closeCipherModal()">CONFIRM</button>
+    </div>
+</div>
+
 <script>
     let currentMode = "{{ mode }}";
     let currentCipher = "{{ cipher }}";
+    let currentShift = {{ shift }};
+    let currentKeyword = "{{ keyword }}";
+    let encryptedMode = {{ 'true' if encrypted_mode else 'false' }};
 
-    function setMode(mode) {
-        currentMode = mode;
-        document.getElementById('modeInput').value = mode;
-        document.querySelectorAll('.pill-btn').forEach(function(b) { b.classList.remove('active'); });
-        event.target.classList.add('active');
+    function toggleLock() {
+        encryptedMode = !encryptedMode;
+        document.getElementById('encryptedModeInput').value = encryptedMode ? 'true' : 'false';
+        const btn = document.getElementById('lockBtn');
+        if (encryptedMode) {
+            btn.textContent = '🔒 ENCRYPTED';
+            btn.classList.add('locked');
+            btn.classList.remove('active');
+        } else {
+            btn.textContent = '🔓 PLAIN';
+            btn.classList.remove('locked');
+        }
     }
 
-    function setCipher(cipher) {
+    function toggleAI() {
+        if (currentMode === 'ai') {
+            currentMode = 'plain';
+            document.getElementById('aiBtn').classList.remove('active');
+        } else {
+            currentMode = 'ai';
+            document.getElementById('aiBtn').classList.add('active');
+        }
+        document.getElementById('modeInput').value = currentMode;
+    }
+
+    function openCipherModal() { document.getElementById('cipherModal').classList.add('open'); }
+    function closeCipherModal() {
+        currentShift = parseInt(document.getElementById('shiftPicker').value) || 3;
+        currentKeyword = document.getElementById('keywordPicker').value || 'KEY';
+        document.getElementById('shiftInput').value = currentShift;
+        document.getElementById('keywordInput').value = currentKeyword;
+        document.getElementById('cipherInput').value = currentCipher;
+        document.getElementById('cipherBtn').textContent = '🔐 ' + currentCipher.toUpperCase();
+        document.getElementById('cipherModal').classList.remove('open');
+    }
+
+    function selectCipher(cipher) {
         currentCipher = cipher;
-        document.getElementById('cipherInput').value = cipher;
-        document.querySelectorAll('.pill-btn').forEach(function(b) { b.classList.remove('active'); });
+        document.querySelectorAll('.cipher-option').forEach(function(b) { b.classList.remove('active'); });
         event.target.classList.add('active');
-        document.getElementById('shiftRow').style.display = cipher === 'caesar' ? 'flex' : 'none';
-        document.getElementById('keywordRow').style.display = cipher === 'vigenere' ? 'flex' : 'none';
+        document.getElementById('shiftSection').style.display = cipher === 'caesar' ? 'block' : 'none';
+        document.getElementById('keywordSection').style.display = cipher === 'vigenere' ? 'block' : 'none';
     }
-
-    document.getElementById('shift') && document.getElementById('shift').addEventListener('change', function() {
-        document.getElementById('shiftInput').value = this.value;
-    });
-
-    document.getElementById('keyword') && document.getElementById('keyword').addEventListener('input', function() {
-        document.getElementById('keywordInput').value = this.value;
-    });
-
-    setCipher("{{ cipher }}");
 
     function joinRoom(roomId) {
         window.location.href = '/?room=' + roomId;
@@ -354,7 +381,7 @@ def index():
         rooms=rooms,
         current_room=current_room,
         messages=messages,
-        panic=session.get('panic', False),
+        encrypted_mode=session.get('encrypted_mode', False),
         mode=session.get('mode', 'plain'),
         cipher=session.get('cipher', 'caesar'),
         shift=session.get('shift', 3),
@@ -386,12 +413,13 @@ def send_message_route():
     cipher = request.form.get('cipher', 'caesar')
     shift = int(request.form.get('shift', 3))
     keyword = request.form.get('keyword', 'KEY').strip() or 'KEY'
-    panic = request.form.get('panic') == 'true'
+    encrypted_mode = request.form.get('encrypted_mode') == 'true'
 
     session['mode'] = mode
     session['cipher'] = cipher
     session['shift'] = shift
     session['keyword'] = keyword
+    session['encrypted_mode'] = encrypted_mode
 
     if not message or not room_id:
         return redirect('/?room=' + str(room_id))
@@ -406,14 +434,7 @@ def send_message_route():
 
     is_encrypted = False
 
-    if mode == 'plain':
-        content = message
-    elif mode == 'encrypt':
-        content = 'ENCRYPTED: ' + run_cipher(message)
-        is_encrypted = True
-    elif mode == 'decrypt':
-        content = 'DECRYPTED: ' + run_cipher(message, enc=False)
-    elif mode == 'ai':
+    if mode == 'ai':
         try:
             ai_response = client.models.generate_content(
                 model="gemini-2.5-flash",
@@ -422,14 +443,15 @@ def send_message_route():
             content = ai_response.text.strip()
         except Exception as e:
             content = 'TRANSMISSION ERROR: ' + str(e)
+        sender = 'HQ'
     else:
         content = message
+        sender = session['username']
 
-    if panic and mode != 'decrypt':
+    if encrypted_mode:
         content = run_cipher(content)
         is_encrypted = True
 
-    sender = 'HQ' if mode == 'ai' else session['username']
     save_message(room_id, session['user_id'], sender, content, is_encrypted)
 
     return redirect('/?room=' + str(room_id))
