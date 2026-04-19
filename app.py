@@ -432,7 +432,8 @@ def send_message_route():
         content = run_cipher(content)
         is_encrypted = True
 
-    save_message(room_id, session['user_id'], session['username'], content, is_encrypted)
+    sender = 'HQ' if mode == 'ai' else session['username']
+save_message(room_id, session['user_id'], sender, content, is_encrypted)
 
     return redirect('/?room=' + str(room_id))
 
