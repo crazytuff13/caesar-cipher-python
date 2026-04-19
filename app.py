@@ -19,7 +19,7 @@ init_db()
 HTML = '''<!DOCTYPE html>
 <html>
 <head>
-    <title>CLASSIFIED CHANNEL</title
+    <title>CLASSIFIED CHANNEL</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
@@ -279,7 +279,7 @@ function switchTab(tab) {
     function joinRoom(roomId) {
         window.location.href = '/?room=' + roomId;
         closeSidebar();
-}
+    }
 
     function openNewRoomModal() { document.getElementById('newRoomModal').classList.add('open'); }
     function closeNewRoomModal() { document.getElementById('newRoomModal').classList.remove('open'); }
@@ -292,19 +292,19 @@ function switchTab(tab) {
         document.getElementById('sidebarOverlay').classList.remove('open');
     }
 
+    let refreshTimer = setTimeout(function() { location.reload(); }, 5000);
+    document.getElementById('msgInput') && document.getElementById('msgInput').addEventListener('input', function() {
+        clearTimeout(refreshTimer);
+        if (this.value === '') refreshTimer = setTimeout(function() { location.reload(); }, 5000);
+    });
+
     const messages = document.getElementById('messages');
-if (messages) messages.scrollTop = messages.scrollHeight;
-
-let refreshTimer = setTimeout(function() { location.reload(); }, 5000);
-
-document.getElementById('msgInput') && document.getElementById('msgInput').addEventListener('input', function() {
-    clearTimeout(refreshTimer);
-    if (this.value === '') refreshTimer = setTimeout(function() { location.reload(); }, 5000);
-});
+    if (messages) messages.scrollTop = messages.scrollHeight;
 </script>
 {% endif %}
 </body>
 </html>'''
+
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -366,6 +366,7 @@ def index():
         keyword=session.get('keyword', 'KEY')
     )
 
+
 @app.route('/create_room_form', methods=['POST'])
 def create_room_form():
     if 'user_id' not in session:
@@ -377,6 +378,7 @@ def create_room_form():
     if room_id:
         return redirect('/?room=' + str(room_id))
     return redirect(url_for('index'))
+
 
 @app.route('/send_message', methods=['POST'])
 def send_message_route():
@@ -428,14 +430,15 @@ def send_message_route():
     else:
         content = message
 
-if panic and mode != 'decrypt':
+    if panic and mode != 'decrypt':
         content = run_cipher(content)
         is_encrypted = True
 
-sender = 'HQ' if mode == 'ai' else session['username']
-save_message(room_id, session['user_id'], sender, content, is_encrypted)
+    sender = 'HQ' if mode == 'ai' else session['username']
+    save_message(room_id, session['user_id'], sender, content, is_encrypted)
 
-return redirect('/?room=' + str(room_id))
+    return redirect('/?room=' + str(room_id))
+
 
 @socketio.on('join')
 def on_join(data):
@@ -444,7 +447,6 @@ def on_join(data):
     join_room(room_id)
     emit('user_joined', {'msg': username + ' JOINED THE CHANNEL'}, to=room_id)
 
+
 if __name__ == '__main__':
     socketio.run(app, debug=True)
-
- 
